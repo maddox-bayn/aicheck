@@ -1,0 +1,42 @@
+name: AICheck
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HF_HUB_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+      ANONYMIZED_TELEMETRY: "False"
+      RAGAS_DO_NOT_TRACK: "true"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install CPU assessment environment
+        run: |
+          python -m pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt
+          python -m pip check
+      - name: Grade all reference solutions
+        run: python check.py --reference --verbose
+      - name: Grade submitted checkpoints
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for directory in submissions/cp[0-9][0-9]; do
+            number=${directory##*/cp}
+            python check.py "$((10#$number))" --submission submissions --verbose
+          done
